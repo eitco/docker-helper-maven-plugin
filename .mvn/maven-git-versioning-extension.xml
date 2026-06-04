@@ -1,0 +1,115 @@
+<configuration xmlns="https://github.com/qoomon/maven-git-versioning-extension"
+               xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+               xsi:schemaLocation="https://github.com/qoomon/maven-git-versioning-extension https://qoomon.github.io/maven-git-versioning-extension/configuration-9.4.0.xsd">
+
+    <refs considerTagsOnBranches="true">
+        <ref type="tag">
+            <pattern><![CDATA[(?<tag>[0-9]+\.[0-9]+\.[0-9]+)]]></pattern>
+            <version>${ref.tag}</version>
+            <properties>
+                <version.original>${version}</version.original>
+                <version.numeric>${ref.tag}</version.numeric>
+                <version.symbolic>latest</version.symbolic>
+                <version.semantic>${ref.tag}</version.semantic>
+                <scm.branch>${ref.slug}</scm.branch>
+                <version.unique>${ref.tag}</version.unique>
+            </properties>
+        </ref>
+        <ref type="branch">
+            <pattern><![CDATA[lts-(?<lts>(.*))-development]]></pattern>
+            <version>lts-${ref.lts}-development-SNAPSHOT</version>
+            <properties>
+                <version.original>${version}</version.original>
+                <version.numeric>${version.release}</version.numeric>
+                <version.symbolic>${ref.lts}-development-SNAPSHOT</version.symbolic>
+                <version.semantic>${version.release}-${ref.lts}-development-SNAPSHOT</version.semantic>
+                <scm.branch>${ref.slug}</scm.branch>
+                <version.unique>${version.release}-${ref.lts}-development-build.${build.number}</version.unique>
+            </properties>
+        </ref>
+        <ref type="branch">
+            <pattern>main</pattern>
+            <version>${version}</version>
+            <properties>
+                <version.original>${version}</version.original>
+                <version.numeric>${version.release}</version.numeric>
+                <version.symbolic>main-SNAPSHOT</version.symbolic>
+                <version.semantic>${version}</version.semantic>
+                <scm.branch>${ref.slug}</scm.branch>
+                <version.unique>${version}-build.${build.number}</version.unique>
+            </properties>
+        </ref>
+        <ref type="branch">
+            <pattern><![CDATA[lts-(?<ltsName>(.*))]]></pattern>
+            <version>${version}</version>
+            <properties>
+                <version.original>${version}</version.original>
+                <version.numeric>${version.release}</version.numeric>
+                <version.symbolic>${ref.ltsName}-SNAPSHOT</version.symbolic>
+                <version.semantic>${version}</version.semantic>
+                <scm.branch>${ref.slug}</scm.branch>
+                <version.unique>${version.release}-build.${build.number}</version.unique>
+            </properties>
+        </ref>
+        <ref type="branch">
+            <pattern><![CDATA[((feature|bugfix)/)?(?<feature>[a-zA-Z][a-zA-Z][a-zA-Z]*-[0-9]+).*]]></pattern>
+            <version>${ref.feature}-SNAPSHOT</version>
+            <properties>
+                <version.original>${version}</version.original>
+                <version.numeric>${version.release}</version.numeric>
+                <version.symbolic>${ref.feature}-SNAPSHOT</version.symbolic>
+                <version.semantic>${version.release}-${ref.feature}-SNAPSHOT</version.semantic>
+                <scm.branch>${ref.slug}</scm.branch>
+                <version.unique>${version.release}-${ref.feature}-build.${build.number}</version.unique>
+            </properties>
+        </ref>
+        <ref type="branch">
+            <pattern><![CDATA[(feature|bugfix)/(?<feature>.+)]]></pattern>
+            <version>${ref.feature}-SNAPSHOT</version>
+            <properties>
+                <version.original>${version}</version.original>
+                <version.numeric>${version.release}</version.numeric>
+                <version.symbolic>${ref.feature}-SNAPSHOT</version.symbolic>
+                <version.semantic>${version.release}-${ref.feature}-SNAPSHOT</version.semantic>
+                <scm.branch>${ref.slug}</scm.branch>
+                <version.unique>${version.release}-${ref.feature}-build.${build.number}</version.unique>
+            </properties>
+        </ref>
+        <ref type="branch">
+            <pattern><![CDATA[(?<branch>.+)]]></pattern>
+            <version>${ref.branch}-SNAPSHOT</version>
+            <properties>
+                <version.original>${version}</version.original>
+                <version.numeric>${version.release}</version.numeric>
+                <version.symbolic>${ref.branch}-SNAPSHOT</version.symbolic>
+                <version.semantic>${version.release}-${ref.branch}-SNAPSHOT</version.semantic>
+                <scm.branch>${ref.slug}</scm.branch>
+                <version.unique>${version.release}-${ref.branch}-build.${build.number}</version.unique>
+            </properties>
+        </ref>
+        <ref type="tag">
+            <pattern><![CDATA[(?<tag>.+)]]></pattern>
+            <version>${ref.tag}</version>
+            <properties>
+                <version.original>${version}</version.original>
+                <version.numeric>${version.release}</version.numeric>
+                <version.symbolic>${ref.tag}-SNAPSHOT</version.symbolic>
+                <version.semantic>${version.release}-${ref.tag}-SNAPSHOT</version.semantic>
+                <scm.branch>${ref.slug}</scm.branch>
+                <version.unique>${version.release}-${ref.tag}-build.${build.number}</version.unique>
+            </properties>
+        </ref>
+    </refs>
+    <rev>
+        <version>${version.release}-${commit}-SNAPSHOT</version>
+        <properties>
+            <version.original>${version}</version.original>
+            <version.numeric>${version.release}</version.numeric>
+            <version.symbolic>${commit}-SNAPSHOT</version.symbolic>
+            <version.semantic>${version.release}-${commit}-SNAPSHOT</version.semantic>
+            <scm.branch>${commit}</scm.branch>
+            <version.unique>${version.release}-${commit}-build.${build.number}</version.unique>
+        </properties>
+    </rev>
+
+</configuration>
