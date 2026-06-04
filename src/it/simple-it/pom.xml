@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.example.it</groupId>
+    <artifactId>simple-it</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <description>A simple IT verifying the basic use case.</description>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>@project.groupId@</groupId>
+                <artifactId>@project.artifactId@</artifactId>
+                <version>@project.version@</version>
+                <executions>
+                    <execution>
+                        <id>resolve-volume-path</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>resolve-volume-path</goal>
+                        </goals>
+                        <configuration>
+                            <propertyName>it.resolvedDockerVolumePath</propertyName>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>1.7</version>
+                <executions>
+                    <execution>
+                        <id>write-resolved-path</id>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <mkdir dir="${project.build.directory}"/>
+                                <echo file="${project.build.directory}/resolved-path.txt"
+                                      message="${it.resolvedDockerVolumePath}"/>
+                                <condition property="resolved.path.valid">
+                                    <or>
+                                        <and>
+                                            <os family="windows"/>
+                                            <matches string="${it.resolvedDockerVolumePath}" pattern="^/mnt/[a-z]/.+"/>
+                                        </and>
+                                        <and>
+                                            <not>
+                                                <os family="windows"/>
+                                            </not>
+                                            <equals arg1="${it.resolvedDockerVolumePath}" arg2="${project.basedir}"/>
+                                        </and>
+                                    </or>
+                                </condition>
+                                <fail unless="resolved.path.valid"
+                                      message="Unexpected resolved Docker volume path: ${it.resolvedDockerVolumePath}"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

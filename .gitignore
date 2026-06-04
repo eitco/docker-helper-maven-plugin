@@ -30,3 +30,4 @@ tsconfig.json
 tsconfig.spec.json
 
 test/system-test/keycloak/
+/.git-versioned-pom.xml
