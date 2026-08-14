@@ -108,6 +108,41 @@ Make sure that `resolve-volume-path` runs in an earlier phase than the plugin th
 | `localPath` | `docker.volumes.localPath` | `${project.basedir}` | Local path that is resolved for Docker. |
 | `propertyName` | `docker.volumes.propertyName` | `docker.volumes.resolvedPath` | Name of the Maven property that receives the resolved path. |
 
+## Container cleanup
+
+`docker-helper:cleanup-containers` lists all Docker containers, matches their names against a regular expression, and stops and removes every match. Docker's leading slash is removed before the name is matched. The Docker daemon is read from `DOCKER_HOST` by default; `tcp://` values are used as HTTP URLs. The goal has no default lifecycle phase, so it can be bound where the build's containers are no longer needed.
+
+```xml
+<execution>
+  <id>remove-build-containers</id>
+  <phase>post-integration-test</phase>
+  <goals>
+    <goal>cleanup-containers</goal>
+  </goals>
+  <configuration>
+    <namePattern>my-build-.*</namePattern>
+  </configuration>
+</execution>
+```
+
+Failures while stopping or removing an individual matching container are logged as warnings and do not fail the build. Listing containers still fails the goal when the Docker daemon cannot be reached.
+
+To clean up after all Maven phases have completed, the cleanup can be registered as a JVM shutdown hook. In this mode the goal only registers the hook; it lists, stops, and removes containers when Maven's JVM exits.
+
+```xml
+<configuration>
+  <namePattern>my-build-.*</namePattern>
+  <registerShutdownHook>true</registerShutdownHook>
+</configuration>
+```
+
+| Parameter | Maven Property | Default | Description |
+| --- | --- | --- | --- |
+| `dockerHost` | `docker.cleanup.host` | `${env.DOCKER_HOST}` | HTTP URL of the Docker daemon. `tcp://` is accepted and converted to HTTP. |
+| `namePattern` | `docker.cleanup.namePattern` | `.*` | Regular expression matched against the container name. |
+| `registerShutdownHook` | `docker.cleanup.shutdownHook` | `false` | Registers cleanup for Maven JVM shutdown instead of executing it immediately. |
+| `skip` | `docker.cleanup.skip` | `false` | Skips cleanup completely, including shutdown-hook registration. |
+
 ## Build
 
 ```shell
