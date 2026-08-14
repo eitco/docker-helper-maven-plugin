@@ -10,7 +10,13 @@ path so it can be used as a Docker volume path and exposes the result as a Maven
 The typical use case is a Maven project that starts Docker containers with local volume mappings. On Linux, Docker can 
 use absolute paths directly. On Windows with Docker in WSL, a path like `C:\myproject` must be passed as `/mnt/c/myproject`.
 
-## Goal
+## Goals
+
+- `docker-helper:resolve-volume-path` resolves a local path for Docker volume mappings.
+- `docker-helper:cleanup-containers` stops and removes matching containers.
+- `docker-helper:exec` runs a command in a container.
+
+## resolve-volume-path
 
 ```text
 docker-helper:resolve-volume-path
@@ -18,7 +24,7 @@ docker-helper:resolve-volume-path
 
 The goal runs in the `validate` phase by default.
 
-## Default behavior
+### Default behavior
 
 Without further configuration, `${project.basedir}` is resolved and stored in the Maven property `docker.volumes.resolvedPath`.
 
@@ -29,7 +35,7 @@ C:\myproject -> /mnt/c/myproject
 /home/me/myproject -> /home/me/myproject
 ```
 
-## Usage
+### Usage
 
 ```xml
 <plugin>
@@ -54,7 +60,7 @@ The property can then be used in later Maven phases:
 ${docker.volumes.resolvedPath}
 ```
 
-## Custom Property
+### Custom Property
 
 ```xml
 <plugin>
@@ -82,7 +88,7 @@ Usage:
 ${my.docker.volume.path}
 ```
 
-## Custom Local Path
+### Custom Local Path
 
 By default, `${project.basedir}` is used. A different path can be configured with `localPath`.
 
@@ -93,7 +99,7 @@ By default, `${project.basedir}` is used. A different path can be configured wit
 </configuration>
 ```
 
-## Docker Plugin Example
+### Docker Plugin Example
 
 ```xml
 <volume>${docker.volumes.resolvedPath}:/app</volume>
@@ -101,14 +107,14 @@ By default, `${project.basedir}` is used. A different path can be configured wit
 
 Make sure that `resolve-volume-path` runs in an earlier phase than the plugin that starts the Docker containers.
 
-## Parameters
+### Parameters
 
 | Parameter | Maven Property | Default | Description |
 | --- | --- | --- | --- |
 | `localPath` | `docker.volumes.localPath` | `${project.basedir}` | Local path that is resolved for Docker. |
 | `propertyName` | `docker.volumes.propertyName` | `docker.volumes.resolvedPath` | Name of the Maven property that receives the resolved path. |
 
-## Container cleanup
+## cleanup-containers
 
 `docker-helper:cleanup-containers` lists all Docker containers, matches their names against a regular expression, and stops and removes every match. Docker's leading slash is removed before the name is matched. The Docker daemon is read from `DOCKER_HOST` by default; `tcp://` values are used as HTTP URLs. The goal has no default lifecycle phase, so it can be bound where the build's containers are no longer needed.
 
@@ -136,6 +142,8 @@ To clean up after all Maven phases have completed, the cleanup can be registered
 </configuration>
 ```
 
+### Parameters
+
 | Parameter | Maven Property | Default | Description |
 | --- | --- | --- | --- |
 | `dockerHost` | `docker.host` | `${env.DOCKER_HOST}` | HTTP URL or `unix://` socket address of the Docker daemon. `tcp://` is accepted and converted to HTTP. |
@@ -143,7 +151,7 @@ To clean up after all Maven phases have completed, the cleanup can be registered
 | `registerShutdownHook` | `docker.cleanup.shutdownHook` | `false` | Registers cleanup for Maven JVM shutdown instead of executing it immediately. |
 | `skip` | `docker.cleanup.skip` | `false` | Skips cleanup completely, including shutdown-hook registration. |
 
-## Execute a command in a container
+## exec
 
 `docker-helper:exec` executes a command through the Docker API, so no platform-specific shell executable is needed. Configure the container separately and supply every command token as its own `argument`; the values are passed unchanged and are not interpreted by a shell.
 
@@ -167,6 +175,8 @@ To clean up after all Maven phases have completed, the cleanup can be registered
 ```
 
 `interactive` maps to `docker exec -i` and `tty` to `docker exec -t`. The goal fails when Docker cannot execute the command or the command returns a non-zero exit code.
+
+### Parameters
 
 | Parameter | Maven Property | Default | Description |
 | --- | --- | --- | --- |
