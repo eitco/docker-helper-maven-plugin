@@ -7,16 +7,12 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
-
 import java.io.IOException;
 import java.io.ByteArrayInputStream;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.regex.Pattern;
@@ -26,15 +22,9 @@ import java.util.regex.PatternSyntaxException;
  * Stops and removes Docker containers whose names match a configured regular expression.
  */
 @Mojo(name = "cleanup-containers", threadSafe = true)
-public class CleanupContainersMojo extends AbstractMojo {
+public class CleanupContainersMojo extends AbstractDockerMojo {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-
-    /**
-     * HTTP address of the Docker daemon. By default it is read from the DOCKER_HOST environment variable.
-     */
-    @Parameter(defaultValue = "${env.DOCKER_HOST}", property = "docker.cleanup.host", required = true)
-    private String dockerHost;
 
     /**
      * Regular expression that is matched against container names (without Docker's leading slash).
@@ -65,7 +55,7 @@ public class CleanupContainersMojo extends AbstractMojo {
         final Pattern pattern = compilePattern(namePattern);
         final URI dockerUri = dockerUri(dockerHost);
 
-        final CloseableHttpClient httpClient = HttpClients.createDefault();
+        final CloseableHttpClient httpClient = createHttpClient();
 
         try (CloseableHttpResponse response = httpClient.execute(new HttpGet(endpoint(dockerUri, "/_ping")))) {
             ensureSuccess(response.getStatusLine().getStatusCode(), "ping Docker daemon");
@@ -113,7 +103,7 @@ public class CleanupContainersMojo extends AbstractMojo {
         URI dockerUri
     ) throws MojoExecutionException {
 
-        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
+        try (CloseableHttpClient httpClient = createHttpClient()) {
             cleanupContainers(httpClient, pattern, dockerUri);
         } catch (IOException e) {
             throw new MojoExecutionException("Could not communicate with Docker daemon at " + dockerUri + ".", e);
@@ -234,35 +224,6 @@ public class CleanupContainersMojo extends AbstractMojo {
         }
     }
 
-    static URI dockerUri(String configuredHost) throws MojoExecutionException {
-
-        if (configuredHost == null || configuredHost.trim().isEmpty()) {
-            throw new MojoExecutionException("Docker host is not configured. Set DOCKER_HOST or docker.cleanup.host.");
-        }
-
-        String host = configuredHost.trim();
-
-        if (host.startsWith("tcp://")) {
-            host = "http://" + host.substring("tcp://".length());
-        }
-
-        if (host.startsWith("unix://") || host.startsWith("npipe://")) {
-            throw new MojoExecutionException("Docker host '" + configuredHost + "' is not an HTTP endpoint. Configure docker.cleanup.host with an HTTP URL.");
-        }
-
-        try {
-            URI uri = new URI(host);
-
-            if (!"http".equalsIgnoreCase(uri.getScheme()) && !"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null) {
-                throw new MojoExecutionException("Docker host must be an HTTP URL: " + configuredHost);
-            }
-
-            return uri;
-        } catch (URISyntaxException e) {
-            throw new MojoExecutionException("Docker host is not a valid URL: " + configuredHost, e);
-        }
-    }
-
     static boolean matchesName(JsonNode container, Pattern pattern) {
 
         JsonNode names = container.path("Names");
@@ -305,13 +266,6 @@ public class CleanupContainersMojo extends AbstractMojo {
         }
 
         return value;
-    }
-
-    private static URI endpoint(URI dockerUri, String path) {
-
-        String base = dockerUri.toString();
-
-        return URI.create((base.endsWith("/") ? base.substring(0, base.length() - 1) : base) + path);
     }
 
     private static void ensureSuccess(int status, String operation) throws MojoExecutionException {

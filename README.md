@@ -138,10 +138,44 @@ To clean up after all Maven phases have completed, the cleanup can be registered
 
 | Parameter | Maven Property | Default | Description |
 | --- | --- | --- | --- |
-| `dockerHost` | `docker.cleanup.host` | `${env.DOCKER_HOST}` | HTTP URL of the Docker daemon. `tcp://` is accepted and converted to HTTP. |
+| `dockerHost` | `docker.host` | `${env.DOCKER_HOST}` | HTTP URL or `unix://` socket address of the Docker daemon. `tcp://` is accepted and converted to HTTP. |
 | `namePattern` | `docker.cleanup.namePattern` | `.*` | Regular expression matched against the container name. |
 | `registerShutdownHook` | `docker.cleanup.shutdownHook` | `false` | Registers cleanup for Maven JVM shutdown instead of executing it immediately. |
 | `skip` | `docker.cleanup.skip` | `false` | Skips cleanup completely, including shutdown-hook registration. |
+
+## Execute a command in a container
+
+`docker-helper:exec` executes a command through the Docker API, so no platform-specific shell executable is needed. Configure the container separately and supply every command token as its own `argument`; the values are passed unchanged and are not interpreted by a shell.
+
+```xml
+<execution>
+  <id>db-preparations</id>
+  <phase>pre-integration-test</phase>
+  <goals>
+    <goal>exec</goal>
+  </goals>
+  <configuration>
+    <container>${postgres.container.name}</container>
+    <arguments>
+      <argument>psql</argument>
+      <argument>--username=${database.user}</argument>
+      <argument>--file=/db-dump/preparations.sql</argument>
+      <argument>${database.name}</argument>
+    </arguments>
+  </configuration>
+</execution>
+```
+
+`interactive` maps to `docker exec -i` and `tty` to `docker exec -t`. The goal fails when Docker cannot execute the command or the command returns a non-zero exit code.
+
+| Parameter | Maven Property | Default | Description |
+| --- | --- | --- | --- |
+| `dockerHost` | `docker.host` | `${env.DOCKER_HOST}` | HTTP URL or `unix://` socket address of the Docker daemon. `tcp://` is accepted and converted to HTTP. |
+| `container` | `docker.exec.container` | — | Required Docker container name or ID. |
+| `arguments` | `docker.exec.arguments` | — | Required command and command arguments; one XML `argument` per token. |
+| `interactive` | `docker.exec.interactive` | `false` | Keeps stdin attached (`-i`). |
+| `tty` | `docker.exec.tty` | `false` | Allocates a TTY (`-t`). |
+| `skip` | `docker.exec.skip` | `false` | Skips the invocation. |
 
 ## Build
 

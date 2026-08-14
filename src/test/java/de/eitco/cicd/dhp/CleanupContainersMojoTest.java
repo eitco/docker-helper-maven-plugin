@@ -18,6 +18,11 @@ public class CleanupContainersMojoTest {
     }
 
     @Test
+    public void acceptsUnixDockerHost() throws MojoExecutionException {
+        Assert.assertEquals("http://localhost", CleanupContainersMojo.dockerUri("unix:///var/run/docker.sock").toString());
+    }
+
+    @Test
     public void matchesDockerContainerNameWithoutLeadingSlash() throws Exception {
         JsonNode container = objectMapper.readTree("{\"Names\":[\"/build-test-42\"]}");
         Assert.assertTrue(CleanupContainersMojo.matchesName(container, Pattern.compile("build-test-.*")));
