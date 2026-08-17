@@ -57,6 +57,8 @@ public class CleanupContainersMojo extends AbstractDockerMojo {
 
         final CloseableHttpClient httpClient = createHttpClient();
 
+        getLog().info("Docker host: " + dockerHost);
+
         try (CloseableHttpResponse response = httpClient.execute(new HttpGet(endpoint(dockerUri, "/_ping")))) {
             ensureSuccess(response.getStatusLine().getStatusCode(), "ping Docker daemon");
             getLog().info("Ping Docker daemon successful.");
