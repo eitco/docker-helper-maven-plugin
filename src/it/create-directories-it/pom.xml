@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.example.it</groupId>
+    <artifactId>create-directories-it</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <description>IT verifying create-directories goal behavior on different OS platforms.</description>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>@project.groupId@</groupId>
+                <artifactId>@project.artifactId@</artifactId>
+                <version>@project.version@</version>
+                <executions>
+                    <execution>
+                        <id>create-directories</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>create-directories</goal>
+                        </goals>
+                        <configuration>
+                            <directories>
+                                <directory>${project.build.directory}/it-dirs/a</directory>
+                                <directory>${project.build.directory}/it-dirs/nested/b</directory>
+                            </directories>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>1.7</version>
+                <executions>
+                    <execution>
+                        <id>verify-directories</id>
+                        <phase>test-compile</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <condition property="dir.a.exists">
+                                    <available file="${project.build.directory}/it-dirs/a" type="dir"/>
+                                </condition>
+                                <condition property="dir.b.exists">
+                                    <available file="${project.build.directory}/it-dirs/nested/b" type="dir"/>
+                                </condition>
+                                <fail message="Directory a should exist on Unix">
+                                    <condition>
+                                        <and>
+                                            <not><os family="windows"/></not>
+                                            <not>
+                                                <available file="${project.build.directory}/it-dirs/a" type="dir"/>
+                                            </not>
+                                        </and>
+                                    </condition>
+                                </fail>
+                                <fail message="Directory nested/b should exist on Unix">
+                                    <condition>
+                                        <and>
+                                            <not><os family="windows"/></not>
+                                            <not>
+                                                <available file="${project.build.directory}/it-dirs/nested/b" type="dir"/>
+                                            </not>
+                                        </and>
+                                    </condition>
+                                </fail>
+                                <fail message="Directory a should NOT exist on Windows">
+                                    <condition>
+                                        <and>
+                                            <os family="windows"/>
+                                            <available file="${project.build.directory}/it-dirs/a" type="dir"/>
+                                        </and>
+                                    </condition>
+                                </fail>
+                                <fail message="Directory nested/b should NOT exist on Windows">
+                                    <condition>
+                                        <and>
+                                            <os family="windows"/>
+                                            <available file="${project.build.directory}/it-dirs/nested/b" type="dir"/>
+                                        </and>
+                                    </condition>
+                                </fail>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

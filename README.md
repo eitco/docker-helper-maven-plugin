@@ -14,6 +14,7 @@ use absolute paths directly. On Windows with Docker in WSL, a path like `C:\mypr
 
 - `docker-helper:resolve-volume-path` resolves a local path for Docker volume mappings.
 - `docker-helper:resolve-user-id` resolves the current user's UID/GID as Maven properties.
+- `docker-helper:create-directories` creates host directories for Docker volume mounts with correct ownership.
 - `docker-helper:cleanup-containers` stops and removes matching containers.
 - `docker-helper:exec` runs a command in a container.
 
@@ -228,6 +229,74 @@ Advanced users can override the command used to determine UID/GID. For example, 
 | `uidCommand` | `docker.user.uid.command` | — (auto: `id -u` on Linux, `wsl id -u` on Windows) | Overrides the command used to determine the UID. |
 | `gidCommand` | `docker.user.gid.command` | — (auto: `id -g` on Linux, `wsl id -g` on Windows) | Overrides the command used to determine the GID. |
 | `skip` | `docker.user.skip` | `false` | Skips resolution of the UID/GID. |
+
+## create-directories
+
+```text
+docker-helper:create-directories
+```
+
+The goal runs in the `validate` phase by default.
+
+### Default behavior
+
+Creates host directories that are configured to be used as Docker volume mount sources, ensuring they are owned by the current user. This solves a common issue where the Docker daemon auto-creates missing bind-mount source directories as `root:root`, preventing non-root container processes from writing into them.
+
+The goal is only active when Maven's own JVM runs on Linux (including from within WSL). On Windows and macOS, it is silently skipped (since directory ownership automatically reflects the JVM's running user in those environments, making explicit creation unnecessary).
+
+### Usage
+
+```xml
+<plugin>
+  <groupId>de.eitco.cicd</groupId>
+  <artifactId>docker-helper-maven-plugin</artifactId>
+  <version>1.0-SNAPSHOT</version>
+  <executions>
+    <execution>
+      <id>create-docker-volume-directories</id>
+      <phase>validate</phase>
+      <goals>
+        <goal>create-directories</goal>
+      </goals>
+      <configuration>
+        <directories>
+          <directory>${project.build.directory}/logs</directory>
+          <directory>${project.build.directory}/data</directory>
+        </directories>
+      </configuration>
+    </execution>
+  </executions>
+</plugin>
+```
+
+### Custom Directories
+
+```xml
+<configuration>
+  <directories>
+    <directory>${project.basedir}/target/volumes/db</directory>
+    <directory>${project.basedir}/target/volumes/cache</directory>
+  </directories>
+</configuration>
+```
+
+Relative paths are resolved against `${project.basedir}`. Missing parent directories are created automatically.
+
+### Ownership Recovery
+
+If a directory already exists but is owned by a different user (e.g., a leftover from a prior Docker auto-create or a manual container run):
+
+- **Empty directory**: The directory is deleted and recreated with correct ownership.
+- **Non-empty directory**: A warning is logged; the directory is not deleted to prevent accidental data loss. Manual remediation (via `chown` or `mvn clean`) is required.
+
+If the recreate attempt fails (e.g., permission denied), a warning is logged and the build continues (this is a best-effort recovery for a legacy edge case, not a guaranteed contract).
+
+### Parameters
+
+| Parameter | Maven Property | Default | Description |
+| --- | --- | --- | --- |
+| `directories` | `docker.volumes.directories` | — (empty) | Host directories to create (and their missing parents) before Docker containers start. One `<directory>` element per path. |
+| `skip` | `docker.volumes.directories.skip` | `false` | Skips directory creation entirely. |
 
 ## cleanup-containers
 
