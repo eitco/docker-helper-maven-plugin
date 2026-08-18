@@ -300,7 +300,7 @@ If the recreate attempt fails (e.g., permission denied), a warning is logged and
 
 ## cleanup-containers
 
-`docker-helper:cleanup-containers` lists all Docker containers, matches their names against a regular expression, and stops and removes every match. Docker's leading slash is removed before the name is matched. The Docker daemon is read from `DOCKER_HOST` by default; `tcp://` values are used as HTTP URLs. The goal has no default lifecycle phase, so it can be bound where the build's containers are no longer needed.
+`docker-helper:cleanup-containers` lists all Docker containers, matches their names against a regular expression, and stops and removes every match. Docker's leading slash is removed before the name is matched. The Docker daemon is read from `DOCKER_HOST` by default; `tcp://` values are used as HTTP URLs. The goal has no default lifecycle phase, so it can be bound where the build's containers are no longer needed. By default, all unused Docker volumes are removed after the containers are cleaned up; this can be disabled by setting `removeUnusedVolumes` to `false`.
 
 ```xml
 <execution>
@@ -333,6 +333,7 @@ To clean up after all Maven phases have completed, the cleanup can be registered
 | `dockerHost` | `docker.host` | `${env.DOCKER_HOST}` | HTTP URL or `unix://` socket address of the Docker daemon. `tcp://` is accepted and converted to HTTP. |
 | `namePattern` | `docker.cleanup.namePattern` | `.*` | Regular expression matched against the container name. |
 | `registerShutdownHook` | `docker.cleanup.shutdownHook` | `false` | Registers cleanup for Maven JVM shutdown instead of executing it immediately. |
+| `removeUnusedVolumes` | `docker.cleanup.removeUnusedVolumes` | `true` | Removes unused Docker volumes after stopping and removing matching containers. |
 | `skip` | `docker.cleanup.skip` | `false` | Skips cleanup completely, including shutdown-hook registration. |
 
 ## exec

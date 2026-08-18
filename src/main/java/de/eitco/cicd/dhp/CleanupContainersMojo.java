@@ -44,6 +44,12 @@ public class CleanupContainersMojo extends AbstractDockerMojo {
     @Parameter(defaultValue = "false", property = "docker.cleanup.skip")
     private boolean skip;
 
+    /**
+     * Removes unused Docker volumes after stopping and removing matching containers.
+     */
+    @Parameter(defaultValue = "true", property = "docker.cleanup.removeUnusedVolumes")
+    private boolean removeUnusedVolumes;
+
     @Override
     public void execute() throws MojoExecutionException {
 
@@ -128,6 +134,10 @@ public class CleanupContainersMojo extends AbstractDockerMojo {
                 removeContainer(httpClient, dockerUri, id);
             }
         }
+
+        if (removeUnusedVolumes) {
+            pruneVolumes(httpClient, dockerUri);
+        }
     }
 
     private static void preloadRequestClasses() {
@@ -210,6 +220,27 @@ public class CleanupContainersMojo extends AbstractDockerMojo {
             }
         } catch (IOException e) {
             getLog().warn("Could not remove Docker container '" + id + "': " + e.getMessage());
+        }
+    }
+
+    private void pruneVolumes(
+        CloseableHttpClient httpClient,
+        URI dockerUri
+    ) {
+        try (CloseableHttpResponse response = httpClient.execute(new HttpPost(endpoint(dockerUri, "/volumes/prune")))) {
+
+            int status = response.getStatusLine().getStatusCode();
+
+            if (status < 200 || status >= 300) {
+                getLog().warn("Could not remove unused Docker volumes (HTTP " + status + ").");
+                return;
+            }
+
+            JsonNode result = OBJECT_MAPPER.readTree(response.getEntity().getContent());
+            JsonNode deleted = result.path("VolumesDeleted");
+            getLog().info("Removed " + (deleted.isArray() ? deleted.size() : 0) + " unused Docker volume(s).");
+        } catch (IOException e) {
+            getLog().warn("Could not remove unused Docker volumes: " + e.getMessage());
         }
     }
 
