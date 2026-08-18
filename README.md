@@ -13,6 +13,7 @@ use absolute paths directly. On Windows with Docker in WSL, a path like `C:\mypr
 ## Goals
 
 - `docker-helper:resolve-volume-path` resolves a local path for Docker volume mappings.
+- `docker-helper:resolve-user-id` resolves the current user's UID/GID as Maven properties.
 - `docker-helper:cleanup-containers` stops and removes matching containers.
 - `docker-helper:exec` runs a command in a container.
 
@@ -113,6 +114,120 @@ Make sure that `resolve-volume-path` runs in an earlier phase than the plugin th
 | --- | --- | --- | --- |
 | `localPath` | `docker.volumes.localPath` | `${project.basedir}` | Local path that is resolved for Docker. |
 | `propertyName` | `docker.volumes.propertyName` | `docker.volumes.resolvedPath` | Name of the Maven property that receives the resolved path. |
+
+## resolve-user-id
+
+```text
+docker-helper:resolve-user-id
+```
+
+The goal runs in the `validate` phase by default.
+
+### Default behavior
+
+Without further configuration, the current user's numeric UID and GID are determined and stored in the Maven properties `docker.user.uid` and `docker.user.gid`.
+
+- On **Linux/Unix**, `id -u` and `id -g` are executed.
+- On **Windows**, `wsl id -u` and `wsl id -g` are executed. WSL is required and must be installed on the Windows host; it is not required on Linux.
+
+This is useful when running Docker containers with volume mappings from the local host — the container process can be run with the same UID/GID as the host user to maintain correct file permissions.
+
+### Usage
+
+```xml
+<plugin>
+  <groupId>de.eitco.cicd</groupId>
+  <artifactId>docker-helper-maven-plugin</artifactId>
+  <version>1.0-SNAPSHOT</version>
+  <executions>
+    <execution>
+      <id>resolve-user-id</id>
+      <phase>validate</phase>
+      <goals>
+        <goal>resolve-user-id</goal>
+      </goals>
+    </execution>
+  </executions>
+</plugin>
+```
+
+The properties can then be used in later Maven phases, for example to pass them to a Docker build or container run command:
+
+```xml
+<buildArg>USER_ID=${docker.user.uid}</buildArg>
+<buildArg>GROUP_ID=${docker.user.gid}</buildArg>
+```
+
+Or in a Docker Compose file:
+
+```yaml
+environment:
+  - USER_ID=${docker.user.uid}
+  - GROUP_ID=${docker.user.gid}
+```
+
+### Custom Property Names
+
+```xml
+<plugin>
+  <groupId>de.eitco.cicd</groupId>
+  <artifactId>docker-helper-maven-plugin</artifactId>
+  <version>1.0-SNAPSHOT</version>
+  <executions>
+    <execution>
+      <id>resolve-user-id</id>
+      <phase>validate</phase>
+      <goals>
+        <goal>resolve-user-id</goal>
+      </goals>
+      <configuration>
+        <uidPropertyName>my.container.uid</uidPropertyName>
+        <gidPropertyName>my.container.gid</gidPropertyName>
+      </configuration>
+    </execution>
+  </executions>
+</plugin>
+```
+
+Usage:
+
+```xml
+${my.container.uid}
+${my.container.gid}
+```
+
+### Custom Command
+
+Advanced users can override the command used to determine UID/GID. For example, to target a specific WSL distribution on Windows:
+
+```xml
+<configuration>
+  <uidCommand>
+    <argument>wsl</argument>
+    <argument>-d</argument>
+    <argument>Ubuntu-22.04</argument>
+    <argument>id</argument>
+    <argument>-u</argument>
+  </uidCommand>
+  <gidCommand>
+    <argument>wsl</argument>
+    <argument>-d</argument>
+    <argument>Ubuntu-22.04</argument>
+    <argument>id</argument>
+    <argument>-g</argument>
+  </gidCommand>
+</configuration>
+```
+
+### Parameters
+
+| Parameter | Maven Property | Default | Description |
+| --- | --- | --- | --- |
+| `uidPropertyName` | `docker.user.uid.propertyName` | `docker.user.uid` | Name of the Maven property that receives the resolved UID. |
+| `gidPropertyName` | `docker.user.gid.propertyName` | `docker.user.gid` | Name of the Maven property that receives the resolved GID. |
+| `uidCommand` | `docker.user.uid.command` | — (auto: `id -u` on Linux, `wsl id -u` on Windows) | Overrides the command used to determine the UID. |
+| `gidCommand` | `docker.user.gid.command` | — (auto: `id -g` on Linux, `wsl id -g` on Windows) | Overrides the command used to determine the GID. |
+| `skip` | `docker.user.skip` | `false` | Skips resolution of the UID/GID. |
 
 ## cleanup-containers
 
