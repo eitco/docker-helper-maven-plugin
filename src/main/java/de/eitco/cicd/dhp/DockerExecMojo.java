@@ -112,6 +112,7 @@ public class DockerExecMojo extends AbstractDockerMojo {
                 if (!result.path("Running").asBoolean()) {
                     int exitCode = result.path("ExitCode").asInt(-1);
                     if (exitCode != 0) {
+                        getLog().debug("Received error response from Docker exec:\n " + result.toPrettyString());
                         throw new MojoExecutionException("Docker exec in container '" + container + "' failed with exit code " + exitCode + ".");
                     }
                     return;
