@@ -315,7 +315,7 @@ If the recreate attempt fails (e.g., permission denied), a warning is logged and
 </execution>
 ```
 
-Failures while stopping or removing an individual matching container are logged as warnings and do not fail the build. Listing containers still fails the goal when the Docker daemon cannot be reached.
+Failures while stopping or removing an individual matching container are logged as warnings and do not fail the build. Listing containers still fails the goal when the Docker daemon cannot be reached. Responses with which Docker reports an already-reached state are logged at debug level instead of as warnings, because they mean the work was already done: `304` (container was already stopped) and `404` (container no longer exists) when stopping, `404` and `409` (removal already in progress) when removing, and `409` (another prune operation already running) when pruning volumes.
 
 To clean up after all Maven phases have completed, the cleanup can be registered as a JVM shutdown hook. In this mode the goal only registers the hook; it lists, stops, and removes containers when Maven's JVM exits.
 
@@ -326,13 +326,17 @@ To clean up after all Maven phases have completed, the cleanup can be registered
 </configuration>
 ```
 
+In a multi-module build the hook is registered **once per unique combination of Docker host and `namePattern`**. Modules that inherit the configuration from a parent POM therefore produce a single cleanup when Maven's JVM exits, instead of one per module. A module that overrides `namePattern` or `dockerHost` registers its own hook, so no cleanup is lost. Duplicate registrations are reported at debug level with `mvn -X`. When two modules share a host and pattern but configure `removeUnusedVolumes` differently, the first execution decides.
+
+Volume pruning is serialized within one Maven JVM, because the Docker daemon runs only one prune operation at a time and answers concurrent requests with `409`. A `409` caused by another Maven module or external process is logged at debug level and loses nothing, since pruning is a daemon-global operation.
+
 ### Parameters
 
 | Parameter | Maven Property | Default | Description |
 | --- | --- | --- | --- |
 | `dockerHost` | `docker.host` | `${env.DOCKER_HOST}` | HTTP URL or `unix://` socket address of the Docker daemon. `tcp://` is accepted and converted to HTTP. |
 | `namePattern` | `docker.cleanup.namePattern` | `.*` | Regular expression matched against the container name. |
-| `registerShutdownHook` | `docker.cleanup.shutdownHook` | `false` | Registers cleanup for Maven JVM shutdown instead of executing it immediately. |
+| `registerShutdownHook` | `docker.cleanup.shutdownHook` | `false` | Registers cleanup for Maven JVM shutdown instead of executing it immediately. One hook per Docker host and name pattern per build. |
 | `removeUnusedVolumes` | `docker.cleanup.removeUnusedVolumes` | `true` | Removes unused Docker volumes after stopping and removing matching containers. |
 | `skip` | `docker.cleanup.skip` | `false` | Skips cleanup completely, including shutdown-hook registration. |
 
