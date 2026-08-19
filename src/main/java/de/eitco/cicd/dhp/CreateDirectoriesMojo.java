@@ -57,6 +57,7 @@ public class CreateDirectoriesMojo extends AbstractMojo {
         }
 
         for (File directory : directories) {
+
             if (directory == null || directory.getAbsolutePath().trim().isEmpty()) {
                 throw new MojoExecutionException("Directory path must not be null or empty.");
             }
@@ -120,7 +121,12 @@ public class CreateDirectoriesMojo extends AbstractMojo {
         return osName != null && osName.toLowerCase(Locale.ROOT).contains("linux");
     }
 
-    static DirectoryAction decideAction(boolean exists, boolean isDirectory, boolean ownedByCurrentUser, boolean isEmpty) {
+    static DirectoryAction decideAction(
+        boolean exists,
+        boolean isDirectory,
+        boolean ownedByCurrentUser,
+        boolean isEmpty
+    ) {
         if (!exists) {
             return DirectoryAction.CREATE;
         }
@@ -134,11 +140,13 @@ public class CreateDirectoriesMojo extends AbstractMojo {
     }
 
     static boolean isOwnedByCurrentUser(Path path) throws IOException {
+
         UserPrincipal owner = Files.getOwner(path);
         return owner != null && owner.getName().equals(System.getProperty("user.name"));
     }
 
     static boolean isDirectoryEmpty(Path path) throws IOException {
+
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
             return !stream.iterator().hasNext();
         }

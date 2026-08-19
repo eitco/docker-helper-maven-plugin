@@ -374,6 +374,7 @@ Volume pruning is serialized within one Maven JVM, because the Docker daemon run
 | `arguments` | `docker.exec.arguments` | — | Required command and command arguments; one XML `argument` per token. |
 | `interactive` | `docker.exec.interactive` | `false` | Keeps stdin attached (`-i`). |
 | `tty` | `docker.exec.tty` | `false` | Allocates a TTY (`-t`). |
+| `timeoutSeconds` | `docker.exec.timeoutSeconds` | `10` | Maximum time to wait for the command to finish, in seconds. |
 | `skip` | `docker.exec.skip` | `false` | Skips the invocation. |
 
 ## Build
