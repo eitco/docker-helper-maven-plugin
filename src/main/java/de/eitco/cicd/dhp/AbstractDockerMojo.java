@@ -1,6 +1,8 @@
 package de.eitco.cicd.dhp;
 
 import org.apache.http.HttpHost;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
 import org.apache.http.config.Registry;
 import org.apache.http.config.RegistryBuilder;
 import org.apache.http.conn.socket.ConnectionSocketFactory;
@@ -8,6 +10,7 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.protocol.HttpContext;
+import org.apache.http.util.EntityUtils;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.Parameter;
@@ -16,10 +19,15 @@ import org.newsclub.net.unix.AFUNIXSocketAddress;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.InetSocketAddress;
+import java.net.NoRouteToHostException;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Common Docker daemon communication support for plugin goals.
@@ -31,6 +39,37 @@ abstract class AbstractDockerMojo extends AbstractMojo {
      */
     @Parameter(defaultValue = "${env.DOCKER_HOST}", property = "docker.host", required = true)
     protected String dockerHost;
+
+    private static String describeConnectionFailure(IOException e) {
+
+        String detail = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+
+        if (e instanceof ConnectException) {
+            return "connection refused (" + detail + "). Is the Docker daemon running and listening on this address?";
+        }
+
+        if (e instanceof UnknownHostException) {
+            return "unknown host (" + detail + "). Check the DOCKER_HOST / docker.host configuration.";
+        }
+
+        if (e instanceof NoRouteToHostException) {
+            return "no route to host (" + detail + "). Check network connectivity and firewall rules.";
+        }
+
+        if (e instanceof SocketTimeoutException) {
+            return "connection timed out (" + detail + "). The Docker daemon may be unreachable or overloaded.";
+        }
+
+        return e.getClass().getName() + ": " + detail;
+    }
+
+    private static String readBodyQuietly(CloseableHttpResponse response) {
+        try {
+            return response.getEntity() == null ? "" : EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8).trim();
+        } catch (IOException e) {
+            return "";
+        }
+    }
 
     protected CloseableHttpClient createHttpClient() throws MojoExecutionException {
 
@@ -111,6 +150,32 @@ abstract class AbstractDockerMojo extends AbstractMojo {
             return new File(uri.getPath());
         } catch (URISyntaxException e) {
             throw new MojoExecutionException("Docker host is not a valid URL: " + configuredHost, e);
+        }
+    }
+
+    protected void pingDaemon(
+        CloseableHttpClient httpClient,
+        URI dockerUri
+    ) throws MojoExecutionException {
+
+        URI pingUri = endpoint(dockerUri, "/_ping");
+
+        try (CloseableHttpResponse response = httpClient.execute(new HttpGet(pingUri))) {
+
+            int status = response.getStatusLine().getStatusCode();
+
+            if (!CleanupContainersMojo.isSuccessStatus(status)) {
+                String body = AbstractDockerMojo.readBodyQuietly(response);
+                throw new MojoExecutionException("Could not ping Docker daemon at " + pingUri + " (configured Docker host: "
+                    + dockerHost + "): received HTTP " + status + " " + response.getStatusLine().getReasonPhrase()
+                    + (body.isEmpty() ? "" : " - " + body) + ".");
+            }
+
+            getLog().info("Ping Docker daemon successful.");
+
+        } catch (IOException e) {
+            throw new MojoExecutionException("Could not ping Docker daemon at " + pingUri + " (configured Docker host: "
+                                             + dockerHost + "): " + AbstractDockerMojo.describeConnectionFailure(e), e);
         }
     }
 }
