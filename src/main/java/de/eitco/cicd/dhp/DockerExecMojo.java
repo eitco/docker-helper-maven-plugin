@@ -80,7 +80,7 @@ public class DockerExecMojo extends AbstractDockerMojo {
             throw new MojoExecutionException("Docker exec arguments must not be empty.");
         }
 
-        URI dockerUri = dockerUri(dockerHost);
+        URI dockerUri = dockerUri(resolveDockerHost());
 
         try (CloseableHttpClient httpClient = createHttpClient()) {
             String execId = createExec(httpClient, dockerUri);

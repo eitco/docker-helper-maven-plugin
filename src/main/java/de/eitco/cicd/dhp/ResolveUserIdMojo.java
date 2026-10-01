@@ -50,6 +50,19 @@ public class ResolveUserIdMojo extends AbstractMojo {
     private List<String> gidCommand;
 
     /**
+     * Address of the Docker daemon, read from DOCKER_HOST by default. Decides whether WSL Containers are used on Windows
+     * (not configured, or <code>wslc://</code>).
+     */
+    @Parameter(defaultValue = "${env.DOCKER_HOST}", property = "docker.host")
+    private String dockerHost;
+
+    /**
+     * Image used under WSL Containers to determine the owner of the project directory as seen inside a container.
+     */
+    @Parameter(defaultValue = "alpine", property = "docker.user.wslc.image", required = true)
+    private String wslcImage;
+
+    /**
      * Skips resolution of the current user's UID/GID.
      */
     @Parameter(defaultValue = "false", property = "docker.user.skip")
@@ -76,11 +89,24 @@ public class ResolveUserIdMojo extends AbstractMojo {
         }
 
         boolean windows = isWindows();
-        List<String> uidCmd = effectiveCommand(uidCommand, defaultUidCommand(windows));
-        List<String> gidCmd = effectiveCommand(gidCommand, defaultGidCommand(windows));
+        boolean wslc = windows && WslcStdioSocket.isSelected(dockerHost);
 
-        String uid = parseId(runCommand(uidCmd), "UID");
-        String gid = parseId(runCommand(gidCmd), "GID");
+        List<String> defaultUid = defaultUidCommand(windows);
+        List<String> defaultGid = defaultGidCommand(windows);
+
+        if (wslc) {
+            // Under WSLC the files are owned by whoever the VM's mount presents, not by the user of a WSL distro.
+            String mountedPath = project.getBasedir().getAbsolutePath();
+            getLog().info("Resolving user IDs as seen inside a WSL Containers container (" + wslcImage + ").");
+            defaultUid = wslcOwnerCommand(wslcImage, mountedPath, "%u");
+            defaultGid = wslcOwnerCommand(wslcImage, mountedPath, "%g");
+        }
+
+        List<String> uidCmd = effectiveCommand(uidCommand, defaultUid);
+        List<String> gidCmd = effectiveCommand(gidCommand, defaultGid);
+
+        String uid = parseId(lastLine(runCommand(uidCmd)), "UID");
+        String gid = parseId(lastLine(runCommand(gidCmd)), "GID");
 
         Properties properties = project.getProperties();
         properties.setProperty(uidPropertyName, uid);
@@ -104,6 +130,26 @@ public class ResolveUserIdMojo extends AbstractMojo {
 
     static List<String> defaultGidCommand(boolean windows) {
         return windows ? Arrays.asList("wsl", "id", "-g") : Arrays.asList("id", "-g");
+    }
+
+    /**
+     * Command printing the owner ({@code %u} or {@code %g}) of the mounted directory from within a WSLC container.
+     */
+    static List<String> wslcOwnerCommand(String image, String hostPath, String format) {
+        return Arrays.asList(WslcStdioSocket.COMMAND.get(0), "run", "--rm", "-v", hostPath + ":/work", image, "stat", "-c", format, "/work");
+    }
+
+    /**
+     * Image pull progress may precede the actual result, so only the last line counts.
+     */
+    static String lastLine(String output) {
+
+        if (output == null) {
+            return null;
+        }
+
+        String[] lines = output.trim().split("\\R");
+        return lines[lines.length - 1];
     }
 
     static List<String> effectiveCommand(List<String> configured, List<String> fallback) {

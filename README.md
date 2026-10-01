@@ -130,6 +130,7 @@ Without further configuration, the current user's numeric UID and GID are determ
 
 - On **Linux/Unix**, `id -u` and `id -g` are executed.
 - On **Windows**, `wsl id -u` and `wsl id -g` are executed. WSL is required and must be installed on the Windows host; it is not required on Linux.
+- On **Windows with WSL Containers** (experimental, see [WSL Containers](#wsl-containers-experimental)), the IDs are determined inside a container instead.
 
 This is useful when running Docker containers with volume mappings from the local host — the container process can be run with the same UID/GID as the host user to maintain correct file permissions.
 
@@ -228,6 +229,8 @@ Advanced users can override the command used to determine UID/GID. For example, 
 | `gidPropertyName` | `docker.user.gid.propertyName` | `docker.user.gid` | Name of the Maven property that receives the resolved GID. |
 | `uidCommand` | `docker.user.uid.command` | — (auto: `id -u` on Linux, `wsl id -u` on Windows) | Overrides the command used to determine the UID. |
 | `gidCommand` | `docker.user.gid.command` | — (auto: `id -g` on Linux, `wsl id -g` on Windows) | Overrides the command used to determine the GID. |
+| `dockerHost` | `docker.host` | `${env.DOCKER_HOST}` | Decides whether WSL Containers are used on Windows (no value, or `wslc://`). See [WSL Containers](#wsl-containers-experimental). |
+| `wslcImage` | `docker.user.wslc.image` | `alpine` | Image used under WSL Containers to determine the owner of the project directory. |
 | `skip` | `docker.user.skip` | `false` | Skips resolution of the UID/GID. |
 
 ## create-directories
@@ -334,7 +337,7 @@ Volume pruning is serialized within one Maven JVM, because the Docker daemon run
 
 | Parameter | Maven Property | Default | Description |
 | --- | --- | --- | --- |
-| `dockerHost` | `docker.host` | `${env.DOCKER_HOST}` | HTTP URL or `unix://` socket address of the Docker daemon. `tcp://` is accepted and converted to HTTP. |
+| `dockerHost` | `docker.host` | `${env.DOCKER_HOST}` (on Windows without a value: WSL Containers, see [WSL Containers](#wsl-containers-experimental)) | HTTP URL, `unix://` socket address or `wslc://` of the Docker daemon. `tcp://` is accepted and converted to HTTP. |
 | `namePattern` | `docker.cleanup.namePattern` | `.*` | Regular expression matched against the container name. |
 | `registerShutdownHook` | `docker.cleanup.shutdownHook` | `false` | Registers cleanup for Maven JVM shutdown instead of executing it immediately. One hook per Docker host and name pattern per build. |
 | `removeUnusedVolumes` | `docker.cleanup.removeUnusedVolumes` | `true` | Removes unused Docker volumes after stopping and removing matching containers. |
@@ -369,13 +372,49 @@ Volume pruning is serialized within one Maven JVM, because the Docker daemon run
 
 | Parameter | Maven Property | Default | Description |
 | --- | --- | --- | --- |
-| `dockerHost` | `docker.host` | `${env.DOCKER_HOST}` | HTTP URL or `unix://` socket address of the Docker daemon. `tcp://` is accepted and converted to HTTP. |
+| `dockerHost` | `docker.host` | `${env.DOCKER_HOST}` (on Windows without a value: WSL Containers, see [WSL Containers](#wsl-containers-experimental)) | HTTP URL, `unix://` socket address or `wslc://` of the Docker daemon. `tcp://` is accepted and converted to HTTP. |
 | `container` | `docker.exec.container` | — | Required Docker container name or ID. |
 | `arguments` | `docker.exec.arguments` | — | Required command and command arguments; one XML `argument` per token. |
 | `interactive` | `docker.exec.interactive` | `false` | Keeps stdin attached (`-i`). |
 | `tty` | `docker.exec.tty` | `false` | Allocates a TTY (`-t`). |
 | `timeoutSeconds` | `docker.exec.timeoutSeconds` | `10` | Maximum time to wait for the command to finish, in seconds. |
 | `skip` | `docker.exec.skip` | `false` | Skips the invocation. |
+
+## WSL Containers (experimental)
+
+On Windows, the plugin can talk to [WSL Containers](https://github.com/microsoft/WSL) (`wslc`). This support is **experimental**
+and has had little real-world testing. It affects the goals `cleanup-containers`, `exec` and `resolve-user-id`.
+
+WSL Containers publish neither a named pipe nor a TCP port. The plugin therefore starts the bridge
+`wslc system session run docker system dial-stdio` for every HTTP connection and speaks the Docker API through its
+stdin/stdout.
+
+### Activation
+
+- Without `DOCKER_HOST` / `docker.host` on **Windows**, the plugin checks `wslc version`. If it succeeds, WSL Containers
+  are used; otherwise the build fails with a hint to configure a Docker host.
+- `docker.host=wslc://` selects WSL Containers explicitly.
+- Any other configured Docker host is used unchanged. On other operating systems nothing changes.
+
+The `wslc` executable is looked up on the `PATH`. The environment variable `WSLC_EXECUTABLE` overrides it, for example for a
+non-default installation location.
+
+### User IDs
+
+`resolve-user-id` does not use `wsl id` under WSL Containers. It runs a short-lived container that mounts the project directory
+and reads the owner as seen inside the container:
+
+```text
+wslc run --rm -v <basedir>:/work alpine stat -c %u /work
+```
+
+The image is configurable with `docker.user.wslc.image`; `uidCommand` / `gidCommand` still take precedence.
+
+### Limitations
+
+- The bridge process has no read timeout; configured socket timeouts do not apply.
+- `resolve-volume-path` is unchanged and still produces `/mnt/<drive>/...` paths.
+- The `wslc` command line and the resulting file ownership are not officially documented by Microsoft and may change.
 
 ## Build
 

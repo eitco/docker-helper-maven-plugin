@@ -28,6 +28,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 /**
  * Common Docker daemon communication support for plugin goals.
@@ -35,10 +36,19 @@ import java.nio.charset.StandardCharsets;
 abstract class AbstractDockerMojo extends AbstractMojo {
 
     /**
-     * HTTP address of the Docker daemon. By default it is read from the DOCKER_HOST environment variable.
+     * Pseudo host selecting WSL Containers (WSLC) on Windows.
      */
-    @Parameter(defaultValue = "${env.DOCKER_HOST}", property = "docker.host", required = true)
+    static final String WSLC_HOST = "wslc://";
+
+    /**
+     * Address of the Docker daemon. By default it is read from the DOCKER_HOST environment variable. If neither is
+     * set and the plugin runs on Windows, WSL Containers are used (also selectable explicitly with <code>wslc://</code>).
+     */
+    @Parameter(defaultValue = "${env.DOCKER_HOST}", property = "docker.host")
     protected String dockerHost;
+
+    private boolean wslcChecked;
+    private boolean wslcAvailable;
 
     private static String describeConnectionFailure(IOException e) {
 
@@ -71,13 +81,62 @@ abstract class AbstractDockerMojo extends AbstractMojo {
         }
     }
 
+    /**
+     * Returns the configured Docker host. If none is configured and the plugin runs on Windows, WSL Containers are used.
+     */
+    protected String resolveDockerHost() throws MojoExecutionException {
+
+        if (dockerHost != null && !dockerHost.trim().isEmpty()) {
+            return dockerHost;
+        }
+
+        if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows")) {
+            return dockerHost;
+        }
+
+        if (!wslcChecked) {
+            wslcChecked = true;
+            wslcAvailable = WslcStdioSocket.isAvailable();
+            if (wslcAvailable) {
+                getLog().info("No Docker host configured, using WSL Containers (" + WSLC_HOST + ").");
+            }
+        }
+
+        if (!wslcAvailable) {
+            throw new MojoExecutionException("No Docker host configured and WSL Containers are not available ('"
+                + WslcStdioSocket.COMMAND.get(0) + " version' failed). Set DOCKER_HOST or docker.host, or install WSL Containers.");
+        }
+
+        return WSLC_HOST;
+    }
+
     protected CloseableHttpClient createHttpClient() throws MojoExecutionException {
 
-        if (!dockerHost.trim().startsWith("unix://")) {
+        String host = resolveDockerHost();
+
+        if (host != null && host.trim().equalsIgnoreCase(WSLC_HOST)) {
+            return createSocketHttpClient(new ConnectionSocketFactory() {
+                @Override
+                public Socket createSocket(HttpContext context) {
+                    return new WslcStdioSocket();
+                }
+
+                @Override
+                public Socket connectSocket(
+                    int connectTimeout, Socket socket, HttpHost httpHost, InetSocketAddress remoteAddress,
+                    InetSocketAddress localAddress, HttpContext context
+                ) throws IOException {
+                    socket.connect(remoteAddress, connectTimeout);
+                    return socket;
+                }
+            });
+        }
+
+        if (host == null || !host.trim().startsWith("unix://")) {
             return HttpClients.createDefault();
         }
 
-        final File socketFile = unixSocketFile(dockerHost);
+        final File socketFile = unixSocketFile(host);
 
         ConnectionSocketFactory socketFactory = new ConnectionSocketFactory() {
             @Override
@@ -94,6 +153,11 @@ abstract class AbstractDockerMojo extends AbstractMojo {
                 return socket;
             }
         };
+
+        return createSocketHttpClient(socketFactory);
+    }
+
+    private static CloseableHttpClient createSocketHttpClient(ConnectionSocketFactory socketFactory) {
 
         Registry<ConnectionSocketFactory> socketFactoryRegistry = RegistryBuilder.<ConnectionSocketFactory>create()
             .register("http", socketFactory)
@@ -112,6 +176,10 @@ abstract class AbstractDockerMojo extends AbstractMojo {
 
         if (host.startsWith("tcp://")) {
             host = "http://" + host.substring("tcp://".length());
+        }
+
+        if (host.equalsIgnoreCase(WSLC_HOST)) {
+            return URI.create("http://localhost");
         }
 
         if (host.startsWith("unix://")) {
@@ -167,7 +235,7 @@ abstract class AbstractDockerMojo extends AbstractMojo {
             if (!CleanupContainersMojo.isSuccessStatus(status)) {
                 String body = AbstractDockerMojo.readBodyQuietly(response);
                 throw new MojoExecutionException("Could not ping Docker daemon at " + pingUri + " (configured Docker host: "
-                    + dockerHost + "): received HTTP " + status + " " + response.getStatusLine().getReasonPhrase()
+                    + resolveDockerHost() + "): received HTTP " + status + " " + response.getStatusLine().getReasonPhrase()
                     + (body.isEmpty() ? "" : " - " + body) + ".");
             }
 
@@ -175,7 +243,7 @@ abstract class AbstractDockerMojo extends AbstractMojo {
 
         } catch (IOException e) {
             throw new MojoExecutionException("Could not ping Docker daemon at " + pingUri + " (configured Docker host: "
-                                             + dockerHost + "): " + AbstractDockerMojo.describeConnectionFailure(e), e);
+                                             + resolveDockerHost() + "): " +AbstractDockerMojo.describeConnectionFailure(e), e);
         }
     }
 }
